@@ -1,3 +1,6 @@
+// run database first
+// /Users/dborde/mongodb/bin/mongod --dbpath=/Users/dborde/mongodb-data/
+
 const request = require('supertest')
 const app = require('../src/app')
 const User = require('../src/models/user')
@@ -112,4 +115,92 @@ test('Should not update invalid user fields', async () => {
             location: 'Chicago',
         })
         .expect(400)
+})
+
+test('Should login existing user', async () => {
+    const response = await request(app).post('/users/login').send({
+        email: userOne.email,
+        password: userOne.password
+    }).expect(200)
+
+    const user = await User.findById(userOneId)
+    // Assert token in response matches users second token
+    expect(response.body.token).toBe(user.tokens[1].token)
+})
+
+test('Should not signup user with invalid name', async () => {
+    // name cannot be empty
+    const response = await request(app).post('/users').send({
+        name: '',
+        email: 'david@example.com',
+        password: 'MyPass777!'
+    }).expect(400)
+})
+
+test('Should not signup user with invalid email', async () => {
+    // email would have an '@' symbol
+    const response = await request(app).post('/users').send({
+        name: 'dave',
+        email: 'davidexample.com',
+        password: 'MyPass777!'
+    }).expect(400)
+})
+
+test('Should not signup user with invalid password', async () => {
+    // password should have minlength: 7
+    const response = await request(app).post('/users').send({
+        name: 'dave',
+        email: 'davidexample.com',
+        password: 'MyPas'
+    }).expect(400)
+})
+
+test('Should not update user if unauthenticated', async () => {
+    await request(app)
+        .patch('/users/me')
+        .send({
+            email: 'dave@bigad.tv',
+            password: 'Welcome1!'
+        })
+        .expect(401)
+})
+
+test('Should not update user with invalid name', async () => {
+    // name update cannot be empty
+    await request(app)
+        .patch('/users/me')
+        .set('Authorization', `Bearer ${userOne.tokens[0].token}`)
+        .send({
+            name: ''
+        })
+        .expect(400)
+})
+
+test('Should not update user with invalid email', async () => {
+     // email update would have an '@' symbol
+    await request(app)
+        .patch('/users/me')
+        .set('Authorization', `Bearer ${userOne.tokens[0].token}`)
+        .send({
+            email: 'davebigad.tv',
+        })
+        .expect(400)
+})
+
+test('Should not update user with invalid password', async () => {
+    // password cannot contain 'password'
+   await request(app)
+       .patch('/users/me')
+       .set('Authorization', `Bearer ${userOne.tokens[0].token}`)
+       .send({
+          password: 'password'
+       })
+       .expect(400)
+})
+
+test('Should not delete user if unauthenticated', async () => {
+   await request(app)
+       .delete('/users/me')
+       .send()
+       .expect(401)
 })
